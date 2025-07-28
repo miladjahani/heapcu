@@ -1,0 +1,35 @@
+/* فونت وزیرمتن برای نمایش زیبای متون فارسی
+  این فونت باید در فایل public/index.html لینک شده باشد
+*/
+body {
+  font-family: 'Vazirmatn', sans-serif;
+  direction: rtl;
+}
+
+/* استایل‌های دیگر که در کامپوننت App.jsx به صورت inline تعریف شده‌اند
+  برای خوانایی بهتر و مدیریت آسان‌تر، می‌توانید تمام آن استایل‌ها را 
+  از آبجکت `styles` در فایل jsx حذف کرده و به این فایل css منتقل کنید.
+  مثال:
+  
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 80, 150, 0.1);
+    overflow: hidden;
+  }
+
+  .main-header {
+    text-align: center;
+    padding: 25px;
+    background-color: #0d47a1;
+    color: white;
+    font-size: 26px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+  }
+*/
