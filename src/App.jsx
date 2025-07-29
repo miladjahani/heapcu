@@ -150,7 +150,9 @@ export default function App() {
     // 1. Base Production & Feed Rate
     const P_hr_ton = (wd > 0 && wh > 0) ? p / (wd * wh) : 0; // Stream 10
     const P_hr_kg = P_hr_ton * 1000;
-    const hourlyOreFeedRate = (oreGrade > 0 && totalRecovery > 0 && wh > 0) ? (p / wd) / (oreGrade / 100 * totalRecovery / 100) / wh : 0; // Stream 1
+    const dailyCopperProduction = wd > 0 ? p / wd : 0;
+    const requiredOreFeedRate = (oreGrade > 0 && totalRecovery > 0) ? dailyCopperProduction / (oreGrade / 100 * totalRecovery / 100) : 0; // Daily Rate
+    const hourlyOreFeedRate = wh > 0 ? requiredOreFeedRate / wh : 0; // Stream 1
     
     // 2. PLS Flow Rate (Q4)
     const Q4 = (C4_in > 0 && R > 0) ? P_hr_kg / (C4_in * (R / 100)) : 0; // Stream 4 (Q)
