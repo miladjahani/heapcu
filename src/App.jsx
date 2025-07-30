@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { utils, writeFile } from 'xlsx';
-import { ChevronsDown, HelpCircle, FileDown, Calculator, Settings, Droplets, Zap, Layers, AreaChart, Weight, Mountain, Cog, Hammer, Power, BarChart2, DollarSign, Briefcase, ExternalLink } from 'lucide-react';
+import { ChevronsDown, HelpCircle, FileDown, Calculator, Settings, Droplets, Zap, Layers, AreaChart, Weight, Mountain, Cog, Hammer, Power, BarChart2, DollarSign, Briefcase, ExternalLink, Sparkles } from 'lucide-react';
 
 // Helper component for styled input fields
 const InputField = ({ label, unit, value, name, onChange, placeholder, tooltip, disabled = false }) => (
@@ -135,6 +135,8 @@ export default function App() {
 
   const [results, setResults] = useState({});
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [geminiAnalysis, setGeminiAnalysis] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -221,6 +223,74 @@ export default function App() {
     calculateAll();
   }, [inputs, calculateAll]);
 
+  const callGeminiApi = useCallback(async () => {
+    setIsGenerating(true);
+    setGeminiAnalysis('');
+
+    const prompt = `
+        You are an expert metallurgical engineering consultant specializing in copper heap leaching projects.
+        Analyze the following project data and provide a concise, insightful report for a project manager. 
+        Focus on key economic indicators (CAPEX, OPEX, cost per ton), potential risks, and actionable recommendations.
+        Structure your response with clear headings and bullet points.
+        The response MUST be in Persian.
+
+        Here is the project data:
+        ---
+        **Project Goals & Key Inputs:**
+        - Annual Copper Production Target: ${inputs.p.toLocaleString('fa-IR')} tons
+        - Ore Grade: ${inputs.oreGrade}%
+        - Total Process Recovery: ${inputs.totalRecovery}%
+        - Leach Cycle: ${inputs.leachCycle} days
+        - Electricity Price: $${inputs.electricityPrice}/kWh
+        - Sulfuric Acid Price: $${inputs.acidPrice}/ton
+
+        **Key Calculated Results:**
+        - **Total CAPEX:** $${results.totalCapex?.toLocaleString('fa-IR', {maximumFractionDigits: 0})}
+        - **Total Annual OPEX:** $${results.totalOpex?.toLocaleString('fa-IR', {maximumFractionDigits: 0})}
+        - **Production Cost per Ton of Copper:** $${results.productionCostPerTon?.toLocaleString('fa-IR', {maximumFractionDigits: 0})}
+        - **Total Power Consumption:** ${results.totalPowerConsumption?.toLocaleString('fa-IR', {maximumFractionDigits: 0})} kW
+        - **Required Heap Area:** ${results.requiredHeapArea?.toLocaleString('fa-IR', {maximumFractionDigits: 0})} m²
+        - **Hourly Ore Feed Rate:** ${results.hourlyOreFeedRate?.toLocaleString('fa-IR', {maximumFractionDigits: 0})} tons/hr
+        ---
+
+        Please provide your expert analysis based on this data.
+    `;
+    
+    let chatHistory = [];
+    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+    const payload = { contents: chatHistory };
+    const apiKey = ""; // Canvas will provide the key
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`API call failed with status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+            const text = result.candidates[0].content.parts[0].text;
+            setGeminiAnalysis(text);
+        } else {
+            setGeminiAnalysis("پاسخی از سرویس هوش مصنوعی دریافت نشد. لطفاً ساختار پاسخ API را بررسی کنید.");
+        }
+    } catch (error) {
+        console.error("Error calling Gemini API:", error);
+        setGeminiAnalysis("خطا در ارتباط با سرویس هوش مصنوعی. لطفاً اتصال اینترنت و کنسول مرورگر را برای جزئیات بیشتر بررسی کنید.");
+    } finally {
+        setIsGenerating(false);
+    }
+  }, [inputs, results]);
+
   const exportAllToExcel = () => {
     const wb = utils.book_new();
 
@@ -248,29 +318,6 @@ export default function App() {
     writeFile(wb, "گزارش_جامع_لیچینگ.xlsx");
   };
 
-  const getConsultantNotes = () => {
-      const notes = [];
-      if (results.productionCostPerTon > 3000) {
-          notes.push("هزینه تولید بالا به نظر می‌رسد. بررسی قیمت برق و راندمان تجهیزات، به خصوص سنگ‌شکن، توصیه می‌شود.");
-      } else if (results.productionCostPerTon < 1500 && results.productionCostPerTon > 0) {
-          notes.push("هزینه تولید بسیار رقابتی است. این طرح از نظر اقتصادی پتانسیل بالایی دارد.");
-      }
-
-      const powerOpexPercent = results.totalOpex > 0 ? (results.opex_power / results.totalOpex) * 100 : 0;
-      if (powerOpexPercent > 40) {
-          notes.push("هزینه انرژی بخش عمده‌ای از هزینه‌های عملیاتی را تشکیل می‌دهد. استفاده از سنگ‌شکن‌های بهینه‌تر یا مذاکره برای تعرفه برق پایین‌تر می‌تواند موثر باشد.");
-      }
-      
-      if(results.requiredHeapArea > 1000000) {
-          notes.push("مساحت پد مورد نیاز قابل توجه است. بررسی افزایش ارتفاع هیپ برای کاهش سطح اشغال و هزینه‌های ساخت پد مفید خواهد بود.");
-      }
-      
-      if (notes.length === 0) {
-          notes.push("پارامترهای فرآیند در محدوده معقولی قرار دارند. برای تحلیل دقیق‌تر، داده‌های واقعی آزمایشگاهی مورد نیاز است.");
-      }
-      return notes;
-  };
-
   const renderDashboard = () => {
     const capexData = [
         { label: 'پد لیچینگ', value: results.capex_pad || 0, color: '#0e7490' },
@@ -284,11 +331,10 @@ export default function App() {
         { label: 'نگهداری', value: results.opex_maintenance || 0, color: '#ef4444' },
         { label: 'مواد مصرفی', value: results.opex_reagents || 0, color: '#10b981' },
     ];
-    const consultantNotes = getConsultantNotes();
 
     return (
         <div className="p-4 md:p-8">
-            <h2 className="text-3xl font-bold text-white mb-6 text-center">داشبورد مدیریتی و گزارش مشاور</h2>
+            <h2 className="text-3xl font-bold text-white mb-6 text-center">داشبورد مدیریتی</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 <ResultCard title="کل سرمایه‌گذاری (CAPEX)" value={results.totalCapex} unit="دلار" icon={<Briefcase className="text-blue-400" size={24}/>} />
                 <ResultCard title="هزینه عملیاتی سالانه (OPEX)" value={results.totalOpex} unit="دلار" icon={<DollarSign className="text-green-400" size={24}/>} />
@@ -297,15 +343,27 @@ export default function App() {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-gray-900/50 p-6 rounded-xl border border-gray-700">
-                    <h3 className="text-xl font-semibold text-white mb-4">توصیه‌های مشاور</h3>
-                    <ul className="space-y-3">
-                        {consultantNotes.map((note, index) => (
-                            <li key={index} className="flex items-start">
-                                <HelpCircle className="w-5 h-5 text-cyan-400 mr-3 mt-1 flex-shrink-0" />
-                                <p className="text-gray-300">{note}</p>
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-semibold text-white">تحلیل هوشمند با Gemini</h3>
+                        <button onClick={callGeminiApi} disabled={isGenerating} className="flex items-center space-x-2 space-x-reverse bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-lg disabled:opacity-50 disabled:cursor-wait">
+                            <Sparkles size={20} />
+                            <span>{isGenerating ? 'در حال تحلیل...' : 'دریافت تحلیل هوشمند'}</span>
+                        </button>
+                    </div>
+                    {isGenerating && (
+                        <div className="flex justify-center items-center h-48">
+                            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cyan-500"></div>
+                        </div>
+                    )}
+                    {geminiAnalysis && (
+                         <div className="prose prose-invert prose-p:text-gray-300 prose-headings:text-cyan-400 text-gray-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: geminiAnalysis.replace(/\n/g, '<br />') }}></div>
+                    )}
+                    {!isGenerating && !geminiAnalysis && (
+                        <div className="text-center text-gray-500 py-10">
+                            <p>برای دریافت تحلیل تخصصی پروژه بر اساس داده‌های فعلی، روی دکمه بالا کلیک کنید.</p>
+                        </div>
+                    )}
+                     <p className="text-xs text-gray-600 mt-4 pt-2 border-t border-gray-700">توجه: این تحلیل توسط هوش مصنوعی ارائه شده و باید توسط متخصص بازبینی شود.</p>
                 </div>
                 <div className="bg-gray-900/50 p-6 rounded-xl border border-gray-700 flex flex-col space-y-6">
                     <PieChart data={capexData} title="تفکیک هزینه‌های سرمایه‌گذاری (CAPEX)" />
@@ -460,7 +518,7 @@ export default function App() {
         <h2 className="text-3xl font-bold text-cyan-400 mb-6 text-center">راهنمای جامع ابزار</h2>
         <div className="bg-gray-900/50 p-6 rounded-xl border border-gray-700 mb-6">
             <h3 className="text-xl font-semibold text-white mb-3">داشبورد مدیریتی</h3>
-            <p>این بخش یک نمای کلی از مهم‌ترین شاخص‌های فنی و اقتصادی پروژه را ارائه می‌دهد. نمودارها به شما کمک می‌کنند تا به سرعت نقاط قوت و ضعف طرح را شناسایی کنید. بخش "توصیه‌های مشاور" نیز نکات کلیدی برای بهبود طرح را پیشنهاد می‌دهد.</p>
+            <p>این بخش یک نمای کلی از مهم‌ترین شاخص‌های فنی و اقتصادی پروژه را ارائه می‌دهد. بخش "تحلیل هوشمند با Gemini" با استفاده از هوش مصنوعی، تحلیل‌ها و توصیه‌های دقیقی را بر اساس داده‌های شما ارائه می‌دهد که به شناسایی سریع نقاط قوت، ضعف و ریسک‌های پروژه کمک می‌کند.</p>
         </div>
         <div className="bg-gray-900/50 p-6 rounded-xl border border-gray-700 mb-6">
             <h3 className="text-xl font-semibold text-white mb-3">تحلیل اقتصادی</h3>
@@ -494,8 +552,8 @@ export default function App() {
       <header className="bg-gray-900/80 backdrop-blur-sm shadow-lg p-4 sticky top-0 z-20 border-b border-gray-700">
         <div className="container mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3 space-x-reverse">
-            <ChevronsDown className="text-cyan-400" size={32} />
-            <h1 className="text-2xl font-bold">مشاور مهندسی لیچینگ</h1>
+            <Sparkles className="text-cyan-400" size={32} />
+            <h1 className="text-2xl font-bold">مشاور هوشمند لیچینگ</h1>
           </div>
           <nav className="flex space-x-1 space-x-reverse border-b-0">
             <TabButton tabName="dashboard" label="داشبورد" icon={<BarChart2 size={18}/>} />
@@ -518,7 +576,7 @@ export default function App() {
       </main>
 
       <footer className="text-center p-4 text-gray-500 text-sm mt-8">
-        <p>ابزار جامع امکان‌سنجی | طراح: میلاد جهانی</p>
+        <p>ابزار جامع امکان‌سنجی | طراح: میلاد جهانی | قدرت‌گرفته از هوش مصنوعی Gemini</p>
         <button onClick={exportAllToExcel} className="mt-2 flex mx-auto items-center space-x-2 space-x-reverse bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-lg">
             <FileDown size={20} />
             <span>دانلود گزارش جامع اکسل</span>
